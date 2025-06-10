@@ -368,7 +368,7 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
   buffer)
 
 (defun diff-hl-changes ()
-  (let* ((file buffer-file-name)
+  (let* ((file (buffer-file-name (buffer-base-buffer)))
          (backend (vc-backend file)))
     (when backend
       (let ((state (vc-state file backend)))
@@ -561,7 +561,7 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
     (diff-hl-diff-goto-hunk-1 historic)))
 
 (defun diff-hl-diff-read-revisions (rev1-default)
-  (let* ((file buffer-file-name)
+  (let* ((file (buffer-file-name (buffer-base-buffer)))
          (files (list file))
          (backend (vc-backend file))
          (rev2-default nil))
@@ -592,6 +592,19 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
 (defun diff-hl-diff-skip-to (line)
   "In `diff-mode', skip to the hunk and line corresponding to LINE
 in the source file, or the last line of the hunk above it."
+  ;; Convert line number if current buffer is indirect
+  (when (bufferp diff-hl-diff-buffer-with-reference--last-buffer)
+    (with-current-buffer diff-hl-diff-buffer-with-reference--last-buffer
+     (setq line
+        (let ((pos (save-excursion
+                     (goto-char (point-min))
+                     (forward-line line)
+                     (point))))
+          (with-current-buffer (or (buffer-base-buffer) (current-buffer))
+            (save-restriction
+              (widen)
+              (line-number-at-pos pos))))))
+    (setq diff-hl-diff-buffer-with-reference--last-buffer nil))
   (goto-char (point-min)) ; Counteract any similar behavior in diff-mode.
   (diff-hunk-next)
   (let (found)
@@ -639,7 +652,7 @@ in the source file, or the last line of the hunk above it."
            (line (save-excursion
                    (diff-hl-find-current-hunk)
                    (line-number-at-pos)))
-           (file buffer-file-name)
+           (file (buffer-file-name (buffer-base-buffer)))
            (backend (vc-backend file)))
       (unwind-protect
           (progn
@@ -771,7 +784,7 @@ its end position."
     (push-mark (overlay-end hunk) nil t)))
 
 (defun diff-hl--ensure-staging-supported ()
-  (let ((backend (vc-backend buffer-file-name)))
+  (let ((backend (vc-backend (buffer-file-name (buffer-base-buffer)))))
     (unless (eq backend 'Git)
       (user-error "Only Git supports staging; this file is controlled by %s" backend))))
 
@@ -798,7 +811,7 @@ Only supported with Git."
   (diff-hl--ensure-staging-supported)
   (diff-hl-find-current-hunk)
   (let* ((line (line-number-at-pos))
-         (file buffer-file-name)
+         (file (buffer-file-name (buffer-base-buffer)))
          (dest-buffer (get-buffer-create " *diff-hl-stage*"))
          (orig-buffer (current-buffer))
          ;; FIXME: If the file name has double quotes, these need to be quoted.
@@ -838,10 +851,10 @@ Only supported with Git."
 
 Only supported with Git."
   (interactive)
-  (unless buffer-file-name
+  (unless (buffer-file-name (buffer-base-buffer))
     (user-error "No current file"))
   (diff-hl--ensure-staging-supported)
-  (vc-git-command nil 0 buffer-file-name "reset")
+  (vc-git-command nil 0 (buffer-file-name (buffer-base-buffer)) "reset")
   (message "Unstaged all")
   (unless diff-hl-show-staged-changes
     (diff-hl-update)))
@@ -871,7 +884,7 @@ Pops up a diff buffer that can be edited to choose the changes to stage."
   (diff-hl--ensure-staging-supported)
   (let* ((line-beg (and beg (line-number-at-pos beg t)))
          (line-end (and end (line-number-at-pos end t)))
-         (file buffer-file-name)
+         (file (buffer-file-name (buffer-base-buffer)))
          (dest-buffer (get-buffer-create "*diff-hl-stage-some*"))
          (orig-buffer (current-buffer))
          ;; FIXME: If the file name has double quotes, these need to be quoted.
@@ -1040,11 +1053,11 @@ The value of this variable is a mode line template as in
                    ;; Solve the "cloned indirect buffer" problem
                    ;; (diff-hl-mode could be non-nil there, even if
                    ;; buffer-file-name is nil):
-                   (buffer-file-name buf)
-                   (file-in-directory-p (buffer-file-name buf) topdir)
-                   (file-exists-p (buffer-file-name buf)))
+                   (buffer-file-name (or (buffer-base-buffer buf) buf))
+                   (file-in-directory-p (buffer-file-name (or (buffer-base-buffer buf) buf)) topdir)
+                   (file-exists-p (buffer-file-name (or (buffer-base-buffer buf) buf))))
           (with-current-buffer buf
-            (let* ((file buffer-file-name)
+            (let* ((file (buffer-file-name (buffer-base-buffer)))
                    (backend (vc-backend file)))
               (when backend
                 (cond
@@ -1123,36 +1136,40 @@ the user should be returned."
                                         "/dev/shm/"
                                       temporary-file-directory))
 
+(defvar diff-hl-diff-buffer-with-reference--last-buffer nil)
 (defun diff-hl-diff-buffer-with-reference (file &optional dest-buffer backend context-lines)
   "Compute the diff between the current buffer contents and reference in BACKEND.
 The diffs are computed in the buffer DEST-BUFFER. This requires
 the `diff-program' to be in your `exec-path'.
 CONTEXT-LINES is the size of the unified diff context, defaults to 0."
   (require 'diff)
-  (vc-ensure-vc-buffer)
-  (save-current-buffer
-    (let* ((dest-buffer (or dest-buffer "*diff-hl-diff-buffer-with-reference*"))
-           (backend (or backend (vc-backend file)))
-           (temporary-file-directory diff-hl-temporary-directory)
-           (rev
-            (if (and (eq backend 'Git)
-                     (not diff-hl-reference-revision)
-                     (not diff-hl-show-staged-changes))
-                (diff-hl-git-index-revision
+  (setq-local diff-hl-diff-buffer-with-reference--last-buffer (current-buffer))
+  (with-current-buffer (or (buffer-base-buffer)
+                           (current-buffer))
+    (vc-ensure-vc-buffer)
+    (save-current-buffer
+      (let* ((dest-buffer (or dest-buffer "*diff-hl-diff-buffer-with-reference*"))
+             (backend (or backend (vc-backend file)))
+             (temporary-file-directory diff-hl-temporary-directory)
+             (rev
+              (if (and (eq backend 'Git)
+                       (not diff-hl-reference-revision)
+                       (not diff-hl-show-staged-changes))
+                  (diff-hl-git-index-revision
+                   file
+                   (diff-hl-git-index-object-name file))
+                (diff-hl-create-revision
                  file
-                 (diff-hl-git-index-object-name file))
-              (diff-hl-create-revision
-               file
-               (or (diff-hl-resolved-reference-revision backend)
-                   (diff-hl-working-revision file backend)))))
-           (switches (format "-U %d --strip-trailing-cr" (or context-lines 0))))
-      (diff-no-select rev (current-buffer) switches 'noasync
-                      (get-buffer-create dest-buffer))
-      (with-current-buffer dest-buffer
-        (let ((inhibit-read-only t))
-          ;; Function `diff-sentinel' adds a final line, so remove it
-          (delete-matching-lines "^Diff finished.*")))
-      (get-buffer-create dest-buffer))))
+                 (or (diff-hl-resolved-reference-revision backend)
+                     (diff-hl-working-revision file backend)))))
+             (switches (format "-U %d --strip-trailing-cr" (or context-lines 0))))
+        (diff-no-select rev (current-buffer) switches 'noasync
+                        (get-buffer-create dest-buffer))
+        (with-current-buffer dest-buffer
+          (let ((inhibit-read-only t))
+            ;; Function `diff-sentinel' adds a final line, so remove it
+            (delete-matching-lines "^Diff finished.*")))
+        (get-buffer-create dest-buffer)))))
 
 (defun diff-hl-resolved-reference-revision (backend)
   (cond
@@ -1204,9 +1221,9 @@ CONTEXT-LINES is the size of the unified diff context, defaults to 0."
 (defun turn-on-diff-hl-mode ()
   "Turn on `diff-hl-mode' or `diff-hl-dir-mode' in a buffer if appropriate."
   (cond
-   (buffer-file-name
+   ((buffer-file-name (buffer-base-buffer))
     (unless (and diff-hl-disable-on-remote
-                 (file-remote-p buffer-file-name))
+                 (file-remote-p (buffer-file-name (buffer-base-buffer))))
       (diff-hl-mode 1)))
    ((eq major-mode 'vc-dir-mode)
     (diff-hl-dir-mode 1))))

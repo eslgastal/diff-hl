@@ -135,7 +135,7 @@ buffer."
          (line (line-number-at-pos))
          (dest-buffer diff-hl-show-hunk-diff-buffer-name))
     (with-current-buffer buffer
-      (diff-hl-diff-buffer-with-reference (buffer-file-name buffer) dest-buffer)
+      (diff-hl-diff-buffer-with-reference (buffer-file-name (or (buffer-base-buffer buffer) buffer)) dest-buffer)
       (switch-to-buffer dest-buffer)
       (diff-hl-diff-skip-to line)
       (setq vc-sentinel-movepoint (point)))
@@ -363,7 +363,7 @@ end of the OVERLAY, so posframe/inline is placed below the hunk."
 The backend is determined by `diff-hl-show-hunk-function'."
   (interactive)
 
-  (unless (vc-backend buffer-file-name)
+  (unless (vc-backend (buffer-file-name (buffer-base-buffer)))
     (user-error "The buffer is not under version control"))
 
   (diff-hl-find-current-hunk)
