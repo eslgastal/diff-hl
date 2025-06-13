@@ -557,7 +557,8 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
 (defun diff-hl-diff-goto-hunk (&optional historic)
   "Run VC diff command and go to the line corresponding to the current."
   (interactive (list current-prefix-arg))
-  (diff-hl-diff-goto-hunk-1 historic))
+  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
+    (diff-hl-diff-goto-hunk-1 historic)))
 
 (defun diff-hl-diff-read-revisions (rev1-default)
   (let* ((file (buffer-file-name (buffer-base-buffer)))
@@ -737,7 +738,8 @@ its end position."
 (defun diff-hl-revert-hunk ()
   "Revert the diff hunk with changes at or above the point."
   (interactive)
-  (diff-hl-revert-hunk-1))
+  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
+    (diff-hl-revert-hunk-1)))
 
 (defun diff-hl-hunk-overlay-at (pos)
   (cl-loop for o in (overlays-in pos (1+ pos))
