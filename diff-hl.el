@@ -557,8 +557,7 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
 (defun diff-hl-diff-goto-hunk (&optional historic)
   "Run VC diff command and go to the line corresponding to the current."
   (interactive (list current-prefix-arg))
-  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
-    (diff-hl-diff-goto-hunk-1 historic)))
+  (diff-hl-diff-goto-hunk-1 historic))
 
 (defun diff-hl-diff-read-revisions (rev1-default)
   (let* ((file (buffer-file-name (buffer-base-buffer)))
@@ -593,18 +592,25 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
   "In `diff-mode', skip to the hunk and line corresponding to LINE
 in the source file, or the last line of the hunk above it."
   ;; Convert line number if current buffer is indirect
-  (when (bufferp diff-hl-diff-buffer-with-reference--last-buffer)
-    (with-current-buffer diff-hl-diff-buffer-with-reference--last-buffer
+  (when-let
+      ((buf
+        (cond
+         ((bufferp diff-hl-show-hunk--original-buffer)
+          diff-hl-show-hunk--original-buffer)
+         ((bufferp diff-hl-diff-buffer-with-reference--last-buffer)
+          diff-hl-diff-buffer-with-reference--last-buffer)
+         )))
+    (my/show buf)
+    (with-current-buffer buf
      (setq line
         (let ((pos (save-excursion
                      (goto-char (point-min))
                      (forward-line line)
                      (point))))
-          (with-current-buffer (or (buffer-base-buffer) (current-buffer))
+          (with-current-buffer (or (buffer-base-buffer buf) buf)
             (save-restriction
               (widen)
-              (line-number-at-pos pos))))))
-    (setq diff-hl-diff-buffer-with-reference--last-buffer nil))
+              (line-number-at-pos pos)))))))
   (goto-char (point-min)) ; Counteract any similar behavior in diff-mode.
   (diff-hunk-next)
   (let (found)
@@ -731,8 +737,7 @@ its end position."
 (defun diff-hl-revert-hunk ()
   "Revert the diff hunk with changes at or above the point."
   (interactive)
-  (with-current-buffer (or (buffer-base-buffer) (current-buffer))
-    (diff-hl-revert-hunk-1)))
+  (diff-hl-revert-hunk-1))
 
 (defun diff-hl-hunk-overlay-at (pos)
   (cl-loop for o in (overlays-in pos (1+ pos))
@@ -1137,13 +1142,15 @@ the user should be returned."
                                       temporary-file-directory))
 
 (defvar diff-hl-diff-buffer-with-reference--last-buffer nil)
+
 (defun diff-hl-diff-buffer-with-reference (file &optional dest-buffer backend context-lines)
   "Compute the diff between the current buffer contents and reference in BACKEND.
 The diffs are computed in the buffer DEST-BUFFER. This requires
 the `diff-program' to be in your `exec-path'.
 CONTEXT-LINES is the size of the unified diff context, defaults to 0."
   (require 'diff)
-  (setq-local diff-hl-diff-buffer-with-reference--last-buffer (current-buffer))
+  (setq diff-hl-diff-buffer-with-reference--last-buffer (current-buffer))
+  (my/show diff-hl-diff-buffer-with-reference--last-buffer)
   (with-current-buffer (or (buffer-base-buffer)
                            (current-buffer))
     (vc-ensure-vc-buffer)
