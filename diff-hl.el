@@ -589,6 +589,7 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
       (when (string= rev2 "") (setq rev2 nil))
       (cons rev1 rev2))))
 
+(defvar diff-hl-show-hunk--original-buffer)
 (defvar diff-hl-diff-buffer-with-reference--last-buffer nil)
 
 (defun diff-hl-diff-skip-to (line)
