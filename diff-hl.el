@@ -589,6 +589,8 @@ It can be a relative expression as well, such as \"HEAD^\" with Git, or
       (when (string= rev2 "") (setq rev2 nil))
       (cons rev1 rev2))))
 
+(defvar diff-hl-diff-buffer-with-reference--last-buffer nil)
+
 (defun diff-hl-diff-skip-to (line)
   "In `diff-mode', skip to the hunk and line corresponding to LINE
 in the source file, or the last line of the hunk above it."
@@ -1142,8 +1144,6 @@ the user should be returned."
                                              (file-directory-p "/dev/shm/"))
                                         "/dev/shm/"
                                       temporary-file-directory))
-
-(defvar diff-hl-diff-buffer-with-reference--last-buffer nil)
 
 (defun diff-hl-diff-buffer-with-reference (file &optional dest-buffer backend context-lines)
   "Compute the diff between the current buffer contents and reference in BACKEND.
