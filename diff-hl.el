@@ -601,7 +601,7 @@ in the source file, or the last line of the hunk above it."
          ((bufferp diff-hl-diff-buffer-with-reference--last-buffer)
           diff-hl-diff-buffer-with-reference--last-buffer)
          )))
-    (my/show buf)
+    ;; (my/show buf)
     (with-current-buffer buf
      (setq line
         (let ((pos (save-excursion
@@ -1152,7 +1152,7 @@ the `diff-program' to be in your `exec-path'.
 CONTEXT-LINES is the size of the unified diff context, defaults to 0."
   (require 'diff)
   (setq diff-hl-diff-buffer-with-reference--last-buffer (current-buffer))
-  (my/show diff-hl-diff-buffer-with-reference--last-buffer)
+  ;; (my/show diff-hl-diff-buffer-with-reference--last-buffer)
   (with-current-buffer (or (buffer-base-buffer)
                            (current-buffer))
     (vc-ensure-vc-buffer)
